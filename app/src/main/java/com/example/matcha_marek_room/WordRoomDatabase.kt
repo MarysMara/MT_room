@@ -15,10 +15,37 @@ import kotlinx.coroutines.launch
  * This is the backend. The database. This used to be done by the OpenHelper.
  * The fact that this has very few comments emphasizes its coolness.
  */
-@Database(entities = [Word::class], version = 1)
+@Database(entities = arrayOf(Word::class), version = 1, exportSchema = false)
 abstract class WordRoomDatabase : RoomDatabase() {
 
     abstract fun wordDao(): WordDao
+
+    private class WordDatabaseCallback(
+        private val scope: CoroutineScope
+    ) : RoomDatabase.Callback() {
+
+        override fun onCreate(db: SupportSQLiteDatabase) {
+            super.onCreate(db)
+            INSTANCE?.let { database ->
+                scope.launch {
+                    var wordDao = database.wordDao()
+
+                    // Delete all content here.
+                    wordDao.deleteAll()
+
+                    // Add sample words.
+                    var word = Word("Hello")
+                    wordDao.insert(word)
+                    word = Word("World!")
+                    wordDao.insert(word)
+
+                    // TODO: Add your own words!
+                    word = Word("TODO!")
+                    wordDao.insert(word)
+                }
+            }
+        }
+    }
 
     companion object {
         @Volatile
@@ -36,48 +63,12 @@ abstract class WordRoomDatabase : RoomDatabase() {
                     WordRoomDatabase::class.java,
                     "word_database"
                 )
-                    // Wipes and rebuilds instead of migrating if no Migration object.
-                    // Migration is not part of this codelab.
-                    .fallbackToDestructiveMigration()
                     .addCallback(WordDatabaseCallback(scope))
                     .build()
                 INSTANCE = instance
                 // return instance
                 instance
             }
-        }
-
-        private class WordDatabaseCallback(
-            private val scope: CoroutineScope
-        ) : RoomDatabase.Callback() {
-            /**
-             * Override the onCreate method to populate the database.
-             */
-            override fun onCreate(db: SupportSQLiteDatabase) {
-                super.onCreate(db)
-                // If you want to keep the data through app restarts,
-                // comment out the following line.
-                INSTANCE?.let { database ->
-                    scope.launch(Dispatchers.IO) {
-                        populateDatabase(database.wordDao())
-                    }
-                }
-            }
-        }
-
-        /**
-         * Populate the database in a new coroutine.
-         * If you want to start with more words, just add them.
-         */
-        suspend fun populateDatabase(wordDao: WordDao) {
-            // Start the app with a clean database every time.
-            // Not needed if you only populate on creation.
-            wordDao.deleteAll()
-
-            var word = Word("Hello")
-            wordDao.insert(word)
-            word = Word("World!")
-            wordDao.insert(word)
         }
     }
 }
